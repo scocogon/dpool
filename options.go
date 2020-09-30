@@ -26,7 +26,6 @@ type Options struct {
 func defaultOptions() *Options {
 	return &Options{
 		CanAutomaticExpansion: false,
-		MaxCapacity:           100000,
 		NonBlock:              true,
 		Timeout:               0,
 		Logger:                dlog,

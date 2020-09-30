@@ -21,8 +21,9 @@ type base struct {
 
 	wg sync.WaitGroup
 
-	siz int32
-	cap int32
+	siz              int32
+	cap              int32
+	defaultGorouting int32
 
 	running int32
 
@@ -39,9 +40,17 @@ func newbase(size int, opts ...FncOption) *base {
 		f(opt)
 	}
 
+	var defaultOptions int
+	if size < 5 {
+		defaultOptions = size
+	} else {
+		defaultOptions = 5
+	}
+
 	return &base{
-		cap: int32(size),
-		opt: opt,
+		cap:              int32(size),
+		defaultGorouting: int32(defaultOptions),
+		opt:              opt,
 	}
 }
 
@@ -71,29 +80,17 @@ func (p *base) Stop() {
 		p.cancel()
 	}
 }
+
 func (p *base) expansion() int32 {
 	size := p.Size()
 	cap := p.Cap()
 
-	if size == 0 {
-		return 1
+	if size < p.defaultGorouting {
+		return p.defaultGorouting
 	}
 
 	if size >= cap {
-		if !p.opt.CanAutomaticExpansion {
-			return 0
-		}
-
-		if p.opt.MaxCapacity == 0 {
-			return 50 // 允许自动扩容时，增加50协程
-		}
-
-		s := p.opt.MaxCapacity - size
-		if s > 50 {
-			return 50
-		}
-
-		return s
+		return 0
 	}
 
 	if cap-size >= size {

@@ -50,6 +50,7 @@ func (p *dpArgs) callContext(ctx context.Context, fn func(context.Context, inter
 	p.initContext(ctx)
 	p.fn = fn
 
+	p.addWait(1)
 	go p.loopExpansion()
 
 	return p.cancel
@@ -58,10 +59,8 @@ func (p *dpArgs) callContext(ctx context.Context, fn func(context.Context, inter
 var ErrExit = errors.New("Stop")
 var ErrTimeout = errors.New("Timeout")
 
-func (p *dpArgs) Invoke(arg interface{}) (err error, res interface{}) {
-	// p.opt.Logger.Printf("[pool.args] arg = %v", arg)
-	p.addWait(1)
-	defer p.doneWait()
+func (p *dpArgs) Invoke(arg interface{}, expire ...time.Duration) (err error, res interface{}) {
+	// dlog.Printf("invoke, len: %d, arg: %+v\n", len(p.workers), arg)
 
 	select {
 	case <-p.ctx.Done():
@@ -69,38 +68,22 @@ func (p *dpArgs) Invoke(arg interface{}) (err error, res interface{}) {
 	default:
 	}
 
-	select {
-	case w := <-p.workers:
-		w.recv(arg)
-		res = w.result()
-
-	case <-p.ctx.Done():
-		return ErrExit, nil
+	var timeout time.Duration
+	if len(expire) > 0 {
+		timeout = expire[0]
+	} else {
+		timeout = 10 * time.Millisecond
 	}
 
-	return
-}
-
-func (p *dpArgs) InvokeNonblock(arg interface{}) (err error, res interface{}) {
-	select {
-	case <-p.ctx.Done():
-		return ErrExit, nil
-	default:
-	}
-
-	ctx, cancel := context.WithTimeout(p.context(), 10*time.Millisecond)
+	ctx, cancel := context.WithTimeout(p.context(), timeout)
 	defer cancel()
 
 	// p.opt.Logger.Printf("[pool.args] arg = %v", arg)
 
 	select {
-	case w, ok := <-p.workers:
-		if ok {
-			w.recv(arg)
-			res = w.result()
-		} else {
-			return ErrExit, nil
-		}
+	case w := <-p.workers:
+		w.recv(arg)
+		res = w.result()
 
 	case <-p.ctx.Done():
 		return ErrExit, nil
@@ -115,8 +98,19 @@ func (p *dpArgs) InvokeNonblock(arg interface{}) (err error, res interface{}) {
 func (p *dpArgs) loopExpansion() {
 	cap := int(p.Cap())
 
-	p.addWait(1)
 	defer p.doneWait()
+
+	go func() {
+		select {
+		case <-p.ctx.Done():
+			p.Stop()
+		}
+	}()
+
+	if !p.opt.CanAutomaticExpansion {
+		p.runNumWorker(int(p.Cap()))
+		return
+	}
 
 	for {
 		select {
@@ -124,17 +118,20 @@ func (p *dpArgs) loopExpansion() {
 			return
 
 		default:
-			l := len(p.workers)
+		}
 
-			switch {
-			case l > cap:
-			case l < 10:
-				size := p.expansion()
-				p.opt.Logger.Printf("current work: %d, new: %d\n", l, size)
-				if size > 0 {
-					p.runNumWorker(int(size))
-				}
+		l := len(p.workers)
+
+		switch {
+		case l > cap:
+		case l < int(p.defaultGorouting):
+			size := p.expansion()
+			// p.opt.Logger.Printf("current work: %d, new: %d\n", l, size)
+			if size == 0 {
+				return
 			}
+
+			p.runNumWorker(int(size))
 		}
 
 		time.Sleep(1 * time.Millisecond)
@@ -142,12 +139,11 @@ func (p *dpArgs) loopExpansion() {
 }
 
 func (p *dpArgs) runNumWorker(size int) {
+	p.addWait(size)
 	for i := 0; i < size; i++ {
 		w := newWorker(p, p.fn)
 		go w.run()
 		p.addWorker(w)
-
-		p.opt.Logger.Printf("new worker")
 	}
 
 	p.addGR(int32(size))
@@ -159,4 +155,11 @@ func (p *dpArgs) addWorker(w *worker) {
 
 func (p *dpArgs) resultIf() bool {
 	return p.hasResult
+}
+
+func (p *dpArgs) Stop() {
+	for w := range p.workers {
+		w.stop()
+		p.doneWait()
+	}
 }

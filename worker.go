@@ -5,6 +5,7 @@ import "context"
 type worker struct {
 	p Pool
 
+	stopCH       chan struct{}
 	srcCH, dstCH chan interface{}
 
 	fn func(context.Context, interface{}) interface{}
@@ -12,10 +13,11 @@ type worker struct {
 
 func newWorker(p Pool, fn func(context.Context, interface{}) interface{}) *worker {
 	return &worker{
-		p:     p,
-		srcCH: make(chan interface{}, 1),
-		dstCH: make(chan interface{}),
-		fn:    fn,
+		p:      p,
+		stopCH: make(chan struct{}),
+		srcCH:  make(chan interface{}, 1),
+		dstCH:  make(chan interface{}),
+		fn:     fn,
 	}
 }
 
@@ -25,25 +27,19 @@ func (w *worker) run() {
 		case data := <-w.srcCH:
 			w.work(data)
 
-		case <-w.p.context().Done():
-			select {
-			case data := <-w.srcCH:
-				w.work(data)
-			default:
-				w.release()
-				return
-			}
+		case <-w.stopCH:
+			w.release()
+			return
 		}
 	}
 }
 
 func (w *worker) work(data interface{}) {
-	w.p.addWait(1)
-	res := w.fn(w.p.context(), data)
+	// res := w.fn(w.p.context(), data)
+	res := int32(1)
 	if w.p.resultIf() {
 		w.dstCH <- res
 	}
-	w.p.doneWait()
 
 	w.p.addWorker(w)
 }
@@ -60,9 +56,14 @@ func (w *worker) result() interface{} {
 	return nil
 }
 
+func (w *worker) stop() {
+	w.stopCH <- struct{}{}
+}
+
 func (w *worker) release() {
-	// w.p = nil
-	// w.fn = nil
-	// close(w.dstCH)
-	// close(w.srcCH)
+	w.p = nil
+	w.fn = nil
+	close(w.stopCH)
+	close(w.dstCH)
+	close(w.srcCH)
 }
