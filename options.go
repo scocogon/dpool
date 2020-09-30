@@ -7,7 +7,7 @@ import (
 type FncOption func(opt *Options)
 
 type Options struct {
-	// 允许自动扩容，默认允许
+	// 允许自动扩容，默认禁止
 	CanAutomaticExpansion bool
 
 	// 自动扩容的最大容量
@@ -25,8 +25,8 @@ type Options struct {
 
 func defaultOptions() *Options {
 	return &Options{
-		CanAutomaticExpansion: true,
-		MaxCapacity:           0,
+		CanAutomaticExpansion: false,
+		MaxCapacity:           100000,
 		NonBlock:              true,
 		Timeout:               0,
 		Logger:                dlog,

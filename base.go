@@ -10,6 +10,7 @@ type ibase interface {
 	Wait()
 	Stop()
 
+	addWait(int)
 	doneWait()
 	context() context.Context
 }
@@ -52,13 +53,10 @@ func (p *base) Cap() int32                { return atomic.LoadInt32(&p.cap) }
 func (p *base) addGR(size int32) int32    { return atomic.AddInt32(&p.siz, size) }
 func (p *base) reduceGR(size int32) int32 { return atomic.AddInt32(&p.siz, -size) }
 func (p *base) isRunning() bool           { return atomic.LoadInt32(&p.running) == 1 }
-func (p *base) runIf() bool {
+func (p *base) runIf() {
 	if !atomic.CompareAndSwapInt32(&p.running, 0, 1) {
-		p.opt.Logger.Printf("the pool has running")
-		return false
+		panic("the pool has running")
 	}
-
-	return true
 }
 func (p *base) context() context.Context { return p.ctx }
 func (p *base) initContext(ctx context.Context) {
@@ -86,7 +84,16 @@ func (p *base) expansion() int32 {
 			return 0
 		}
 
-		return 50 // 允许自动扩容时，增加50协程
+		if p.opt.MaxCapacity == 0 {
+			return 50 // 允许自动扩容时，增加50协程
+		}
+
+		s := p.opt.MaxCapacity - size
+		if s > 50 {
+			return 50
+		}
+
+		return s
 	}
 
 	if cap-size >= size {

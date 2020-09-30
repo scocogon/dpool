@@ -26,9 +26,7 @@ func (p *dpFunc) Submit(fn func()) func() {
 }
 
 func (p *dpFunc) SubmitContext(ctx context.Context, fn func(ctx context.Context)) func() {
-	if !p.runIf() {
-		return nil
-	}
+	p.runIf()
 
 	cap := int(p.Cap())
 

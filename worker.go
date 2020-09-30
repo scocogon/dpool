@@ -30,7 +30,6 @@ func (w *worker) run() {
 			case data := <-w.srcCH:
 				w.work(data)
 			default:
-				w.p.doneWait()
 				w.release()
 				return
 			}
@@ -39,10 +38,13 @@ func (w *worker) run() {
 }
 
 func (w *worker) work(data interface{}) {
+	w.p.addWait(1)
 	res := w.fn(w.p.context(), data)
 	if w.p.resultIf() {
 		w.dstCH <- res
 	}
+	w.p.doneWait()
+
 	w.p.addWorker(w)
 }
 

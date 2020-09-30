@@ -1,6 +1,7 @@
 package dpool
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -31,14 +32,24 @@ func TestPoolArgsResult(t *testing.T) {
 		return i
 	}
 
-	p := NewPoolArgs(100)
+	p := NewPoolArgs(100, WithCanAutomaticExpansion(true))
 	cancel := p.CallResult(fn)
 
-	for i := 0; i < 1000000; i++ {
+	go func() {
+		time.Sleep(2 * time.Second)
+		cancel()
+	}()
+
+	var f int32
+	var wg sync.WaitGroup
+	for i := 0; i < 8000000; i++ {
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			err, res := p.Invoke(int32(1))
 			if err != nil {
-				t.Logf("err = %s\n", err)
+				// t.Logf("err = %s\n", err)
+				atomic.AddInt32(&f, 1)
 				return
 			}
 
@@ -46,12 +57,9 @@ func TestPoolArgsResult(t *testing.T) {
 		}()
 	}
 
-	go func() {
-		time.Sleep(2 * time.Second)
-		cancel()
-	}()
-
 	p.Wait()
+	wg.Wait()
 
-	t.Logf("v = %d\n", v)
+	t.Logf("v = %d, failed = %d, sum = %d\n", v, f, v+f)
+	t.Logf("cnt = %d\n", cnt)
 }
