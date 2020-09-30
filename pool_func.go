@@ -1,36 +1,44 @@
 package dpool
 
-import "context"
+import (
+	"context"
+)
 
-type dpFunc struct {
-	*pool
+type PoolFunc interface {
+	ibase
 
-	ch chan struct{}
+	Submit(func()) func()
+	SubmitContext(ctx context.Context, fn func(ctx context.Context)) func()
 }
 
-func NewPoolFunc(size int, opts ...FncOption) Pool {
+type dpFunc struct {
+	*base
+}
+
+func NewPoolFunc(size int, opts ...FncOption) PoolFunc {
 	return &dpFunc{
-		pool: newPool(size, opts...),
-		ch:   make(chan struct{}),
+		base: newbase(size, opts...),
 	}
 }
 
-func (p *dpFunc) Submit(fn func()) {
-	p.SubmitContext(context.Background(), func(context.Context) { fn() })
+func (p *dpFunc) Submit(fn func()) func() {
+	return p.SubmitContext(context.Background(), func(context.Context) { fn() })
 }
 
-func (p *dpFunc) SubmitContext(ctx context.Context, fn func(ctx context.Context)) {
+func (p *dpFunc) SubmitContext(ctx context.Context, fn func(ctx context.Context)) func() {
 	if !p.runIf() {
-		return
+		return nil
 	}
 
 	cap := int(p.Cap())
 
-	p.add(cap)
-	p.context(ctx)
+	p.addWait(cap)
+	p.initContext(ctx)
 	for i := 0; i < cap; i++ {
 		go p.goFunc(p.ctx, fn)
 	}
+
+	return p.cancel
 }
 
 func (p *dpFunc) goFunc(ctx context.Context, fn func(context.Context)) {
@@ -38,9 +46,9 @@ func (p *dpFunc) goFunc(ctx context.Context, fn func(context.Context)) {
 	go func() {
 		select {
 		case <-ctx.Done():
-			p.done()
+			p.doneWait()
 		case <-ch:
-			p.done()
+			p.doneWait()
 		}
 	}()
 

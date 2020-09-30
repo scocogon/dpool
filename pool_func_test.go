@@ -32,7 +32,11 @@ func TestPoolFunc(t *testing.T) {
 	t.Log("fn2_1 done")
 
 	p = NewPoolFunc(3)
-	p.Submit(func() { fn2(context.Background()) })
+	cancel := p.Submit(func() { fn2(context.Background()) })
+	go func() {
+		time.Sleep(1 * time.Second)
+		cancel()
+	}()
 	p.Wait()
 	t.Log("fn2_2 done")
 }
