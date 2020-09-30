@@ -1,3 +1,7 @@
 # dpool
 
-[中文版](README_cn.md)
+# 安装
+
+```
+go get -u github.com/scocogon/dpool
+```

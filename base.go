@@ -8,6 +8,10 @@ import (
 
 type ibase interface {
 	Wait()
+	Stop()
+
+	doneWait()
+	context() context.Context
 }
 
 type base struct {
@@ -56,10 +60,38 @@ func (p *base) runIf() bool {
 
 	return true
 }
+func (p *base) context() context.Context { return p.ctx }
 func (p *base) initContext(ctx context.Context) {
 	if p.opt.Timeout != 0 {
 		p.ctx, p.cancel = context.WithTimeout(ctx, p.opt.Timeout)
 	} else {
 		p.ctx, p.cancel = context.WithCancel(ctx)
 	}
+}
+func (p *base) Stop() {
+	if p.cancel != nil {
+		p.cancel()
+	}
+}
+func (p *base) expansion() int32 {
+	size := p.Size()
+	cap := p.Cap()
+
+	if size == 0 {
+		return 1
+	}
+
+	if size >= cap {
+		if !p.opt.CanAutomaticExpansion {
+			return 0
+		}
+
+		return 50 // 允许自动扩容时，增加50协程
+	}
+
+	if cap-size >= size {
+		return size
+	}
+
+	return cap - size
 }
