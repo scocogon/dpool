@@ -7,8 +7,8 @@ import (
 type PoolFunc interface {
 	ibase
 
-	Submit(func()) func()
-	SubmitContext(ctx context.Context, fn func(ctx context.Context)) func()
+	Call(func()) func()
+	CallContext(ctx context.Context, fn func(ctx context.Context)) func()
 }
 
 type dpFunc struct {
@@ -21,11 +21,11 @@ func NewPoolFunc(size int, opts ...FncOption) PoolFunc {
 	}
 }
 
-func (p *dpFunc) Submit(fn func()) func() {
-	return p.SubmitContext(context.Background(), func(context.Context) { fn() })
+func (p *dpFunc) Call(fn func()) func() {
+	return p.CallContext(context.Background(), func(context.Context) { fn() })
 }
 
-func (p *dpFunc) SubmitContext(ctx context.Context, fn func(ctx context.Context)) func() {
+func (p *dpFunc) CallContext(ctx context.Context, fn func(ctx context.Context)) func() {
 	p.runIf()
 
 	cap := int(p.Cap())

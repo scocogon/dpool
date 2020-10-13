@@ -59,12 +59,12 @@ func (p *dpArgs) callContext(ctx context.Context, fn func(context.Context, inter
 var ErrExit = errors.New("Stop")
 var ErrTimeout = errors.New("Timeout")
 
-func (p *dpArgs) Invoke(arg interface{}, expire ...time.Duration) (err error, res interface{}) {
+func (p *dpArgs) Invoke(arg interface{}, expire ...time.Duration) (res interface{}, err error) {
 	// dlog.Printf("invoke, len: %d, arg: %+v\n", len(p.workers), arg)
 
 	select {
 	case <-p.ctx.Done():
-		return ErrExit, nil
+		return nil, ErrExit
 	default:
 	}
 
@@ -86,10 +86,10 @@ func (p *dpArgs) Invoke(arg interface{}, expire ...time.Duration) (err error, re
 		res = w.result()
 
 	case <-p.ctx.Done():
-		return ErrExit, nil
+		return nil, ErrExit
 
 	case <-ctx.Done():
-		return ErrTimeout, nil
+		return nil, ErrTimeout
 	}
 
 	return

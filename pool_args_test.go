@@ -1,6 +1,7 @@
 package dpool
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -49,7 +50,7 @@ func TestPoolArgsResult(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			err, res := p.Invoke(int32(1))
+			res, err := p.Invoke(int32(1))
 			if err != nil {
 				atomic.AddInt32(&f, 1)
 				return
@@ -63,4 +64,43 @@ func TestPoolArgsResult(t *testing.T) {
 	wg.Wait()
 
 	dlog.Printf("v = %d, failed = %d, sum = %d\n", v, f, v+f)
+}
+
+func BenchmarkArgsResult(b *testing.B) {
+	v := int32(0)
+
+	fn := func(ctx context.Context, i interface{}) interface{} {
+		return i.(int32) * 2
+	}
+
+	// b.N = 100000
+	b.ResetTimer()
+	b.StartTimer()
+	p := NewPoolArgs(1000)
+	cancel := p.CallResultContext(context.Background(), fn)
+	for i := 0; i < b.N; i++ {
+		go func() {
+			r, err := p.Invoke(int32(1))
+			if err == nil {
+				atomic.AddInt32(&v, r.(int32))
+			}
+		}()
+	}
+	cancel()
+	p.Wait()
+	b.StopTimer()
+
+	// b.ResetTimer()
+	// b.StartTimer()
+	// wg := sync.WaitGroup{}
+	// for i := 0; i < b.N; i++ {
+	// 	wg.Add(1)
+	// 	go func() {
+	// 		atomic.AddInt32(&v, fn(context.Background(), int32(1)).(int32))
+	// 		wg.Done()
+	// 	}()
+	// }
+
+	// wg.Wait()
+	// b.StopTimer()
 }

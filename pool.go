@@ -14,7 +14,7 @@ type Pool interface {
 	CallResult(fn func(interface{}) interface{}) func()
 	CallResultContext(ctx context.Context, fn func(context.Context, interface{}) interface{}) func()
 
-	Invoke(interface{}, ...time.Duration) (err error, res interface{})
+	Invoke(interface{}, ...time.Duration) (res interface{}, err error)
 
 	addWorker(*worker)
 	resultIf() bool
