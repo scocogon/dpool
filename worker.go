@@ -35,8 +35,7 @@ func (w *worker) run() {
 }
 
 func (w *worker) work(data interface{}) {
-	// res := w.fn(w.p.context(), data)
-	res := int32(1)
+	res := w.fn(w.p.context(), data)
 	if w.p.resultIf() {
 		w.dstCH <- res
 	}
