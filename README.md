@@ -10,6 +10,9 @@ go get -u github.com/scocogon/dpool
 
 ## 执行普通函数
 
+> 用于启动 N 个协程执行该函数  
+> 函数自身控制退出时机  
+
 ### 不带参数的函数
 
 ```
@@ -33,8 +36,11 @@ go get -u github.com/scocogon/dpool
 
 	p := NewPoolFunc(2)
 	p.Call(fn)
+
 	time.Sleep(3 * time.Second)
 	close(ch) // 协程退出
+
+    // p.Stop() 协程池退出
 
 	p.Wait() // 协程池退出
 ```
@@ -75,12 +81,17 @@ go get -u github.com/scocogon/dpool
 	// time.Sleep(3 * time.Second)
 	// cancel()
 
+    // p.Stop() 协程池退出
+
 	p.Wait()
 ```
 
 ## 执行带参数的函数
 
-### 不关心返回值
+> 用于启动 N 个协程等待时机，一旦通过 Invoke(...) 传递参数  
+> 则取一个空闲的协程处理该参数，并且返回处理结果  
+
+### 不带返回值的数据处理
 
 ```
 	var res int32
@@ -112,6 +123,10 @@ go get -u github.com/scocogon/dpool
 
 	_ = cancel
 
+	for i := 0; i < 1000; i++ {
+		go p.Invoke(&pas{ctx, int32(1)}) // 传参
+	}
+
 	// 由最顶层的 cancel 退出，多用于进程退出时
 	// time.Sleep(3 * time.Second)
 	// cancel()
@@ -121,16 +136,14 @@ go get -u github.com/scocogon/dpool
 	// time.Sleep(3 * time.Second)
 	// cancel()
 
-	for i := 0; i < 1000; i++ {
-		go p.Invoke(&pas{ctx, int32(1)}) // 传参
-	}
+    // p.Stop() 协程池退出
 
 	p.Wait()
 
 	fmt.Println("done, res =", res)
 ```
 
-### 关心数据处理的返回值
+### 带返回值的数据处理
 
 ```
 	var res int32
@@ -162,15 +175,6 @@ go get -u github.com/scocogon/dpool
 
 	_ = cancel
 
-	// 由最顶层的 cancel 退出，多用于进程退出时
-	// time.Sleep(3 * time.Second)
-	// cancel()
-
-	// 仅停止协程池
-	// cancel = p.CallResultContext(ctx, fn)
-	// time.Sleep(3 * time.Second)
-	// cancel()
-
 	var wg sync.WaitGroup
 	for i := 0; i < 1000; i++ {
 		wg.Add(1)
@@ -185,6 +189,17 @@ go get -u github.com/scocogon/dpool
 			wg.Done()
 		}()
 	}
+
+	// 由最顶层的 cancel 退出，多用于进程退出时
+	// time.Sleep(3 * time.Second)
+	// cancel()
+
+	// 仅停止协程池
+	// cancel = p.CallResultContext(ctx, fn)
+	// time.Sleep(3 * time.Second)
+	// cancel()
+
+    // p.Stop() 协程池退出
 
 	p.Wait()
 	wg.Wait()
