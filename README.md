@@ -167,7 +167,7 @@ go get -u github.com/scocogon/dpool
 	// cancel()
 
 	// 仅停止协程池
-	// cancel = p.CallContext(ctx, fn)
+	// cancel = p.CallResultContext(ctx, fn)
 	// time.Sleep(3 * time.Second)
 	// cancel()
 
